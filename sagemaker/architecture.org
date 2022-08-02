@@ -1,0 +1,62 @@
+#+begin_src plantuml :file "result.png"
+  @startuml
+  package "Existing Service" {
+          interface user
+          component "Search API" as search
+          database "Marklogic" as mark
+          component "Nginx" as nginx
+          user -down-> search
+          search -down-> mark : Execute Search
+          search -right-> nginx
+  }
+
+  skinparam interface {
+          backgroundColor RosyBrown
+          borderColor orange
+  }
+
+  skinparam component {
+          backgroundColor Pink
+          borderColor #ff6655
+  }
+
+
+  package "new Service" {
+          interface "Application Load Balancer" as LBS
+
+          package "Fargate Container" {
+                  component "USCaseClassifier" as case
+                  component "DataDog Agent" as agent
+          }
+
+          package "SageMaker Container" {
+                  component "Nginx" as snginx
+                  component "gunicorn inference.py" as gunicorn
+                  node "tenserflow Serving process" as md {
+                    component "tenserflow serving" as tf
+                    component "USCase Model" as model
+                    component "Nvidia Driver" as driver
+                    component "GPU" as gpu
+                  } 
+
+          }
+
+          nginx -right-> LBS
+          LBS -down-> case
+          case -down-> agent
+          case -right-> snginx
+          snginx -> gunicorn
+          gunicorn -> tf : grpc
+          tf -down- model
+          model -down- driver
+          driver -down- gpu
+  }
+
+  Database "DataDog" as dog
+  agent -left-> dog : "logs/metrics/trace"
+
+  @enduml
+#+end_src
+
+#+RESULTS:
+[[file:result.png]]

@@ -211,3 +211,13 @@ tcp        0      0 127.0.0.1:8000          127.0.0.1:47488         TIME_WAIT   
 tcp        0      0 127.0.0.1:47492         127.0.0.1:8000          ESTABLISHED 1065153/python      
 tcp        0      0 127.0.0.1:8000          127.0.0.1:47484         TIME_WAIT   -                   
 tcp        0      0 127.0.0.1:8000          127.0.0.1:47492         ESTABLISHED 1062945/python3.9   
+
+
+* 其他问题
+
+** python psutil和netstat实现原理
+读取/proc/<pid>/fd 和/proc/net/tcp文件, 获取所有的链接信息.
+
+python psutil默认只读取/proc/<pid>/fd,如果socket不是主动关闭，只能等进程退出出发关闭就无法看到TIME_WAIT状态的socket.
+
+netstat会读取/proc/net/tcp所以可以获得TIME_WAIT状态的socket.
