@@ -1,0 +1,213 @@
+* 关于http keep-alive
+
+** 基础
+
+*** tcp的三次握手
+
+   tcp每次新建链接，需要client和server做三次交互，所以新建tcp连接需要1RTT的网络时间.
+   
+   通过ping命令可以大致知道到达目标机器的RTT,ping本机一般在1ms以内，局域网内一般1-5ms，广域网一般10-50ms之间。
+   具体跟网络情况有关，且同一目标地址有时也会走不同的路由，导致会有比较大的出入.
+
+   完整的http链接建立过程分三步.
+   1) dns查询请求，虽然比较慢，但是一般都有dns缓存，可忽略不计。
+   2) tcp三次握手
+   3) 如果是https链接，还需要一次https的握手
+
+*** tcp的四次断连
+   如果不复用链接的情况下,连接在使用会被断掉。
+
+   断连分主动断连和被动断连，主动断连的一方一般需要一个2MSL的TIME_WAIT时间，一般需要30s-4min.
+   通过netstat -nlp可以看到部分status = TIME_WAIT状态的连接。被动断连在收到final fin_ack后就close.
+
+*** gunicorn的keep-alive
+   gunicorn默认的sync(进程模式不知道keep-alive)
+
+   在gthread和gevent模式下测试支持keep-alive模式.
+
+   默认的超时时间2s, 一般如果gunicorn部署在LBS后建议挑大这个值.
+
+   nginx默认支持keep-alive,默认的keep-alive时间75s，可根据使用情况进一部调整。
+
+*** sagemaker的部署结构
+#+begin_src plantuml :file "sage.png"
+  @startuml
+  package "SageMaker Container" {
+  [Nginx] as ng
+  [gunicorn] as gn
+  [tf-servering] as tf
+  }
+
+  ng -> gn : 转发请求
+  gn -> tf : grpc调用
+
+  @enduml
+#+end_src
+
+#+RESULTS:
+[[file:sage.png]]
+
+ nginx的keep-alive设置为3s,
+ gunicorn的keep-alive为默认值 2s.
+ tf-serving是c++实现的一个restapi和grpc服务，具体代码未看.
+
+ 在容器外 ~invoke_endpoint~ 最终是使用urllib3.PoolManager发起一个https调用
+
+ 通过这段代码断点追了invoke_endpoint的调用
+#+begin_src python
+  import boto3
+
+
+  endname = "test-endname"
+  region = "us-east-1"
+
+
+  def f():
+      import pdb;pdb.set_trace()
+      client = boto3.client('runtime.sagemaker', region_name=region)
+      res = client.invoke_endpoint(EndpointName=endname, ContentType='application/json', Body='hello world')
+
+
+  f()
+#+end_src
+
+#+RESULTS:
+<AWSPreparedRequest stream_output=True, method=POST,
+url=https://runtime.sagemaker.us-east-1.amazonaws.com/endpoints/test-endname/invocations,
+headers={'Content-Type': b'application/json',
+'User-Agent': b'Boto3/1.24.32 Python/3.9.10 Linux/5.15.0-41-generic Botocore/1.27.32',
+'X-Amz-Date': b'20220802T061824Z',
+'amz-sdk-request': b'attempt=1', 'Content-Length': '11'}>
+
+
+** 实验代码
+
+*** gunicorn server
+
+把下面的flask app和gunicorn config代码到处后，用bash启动gunicorn,修改gunicorn代码重启调试不同情况下的
+
+#+begin_src python :tangle "hello.py"
+  import time
+  from flask import Flask
+
+  app = Flask(__name__)
+
+
+  @app.route(__name__)
+  def hello():
+      time.sleep(0.2)
+      return "hello world"
+#+end_src
+
+
+#+begin_src python tangle "gunciron_config.py"
+  import multiprocessing
+
+
+  bind = "127.0.0.1:8000"
+
+  wsgi_app = "hello:app"
+  # worker_class = "gthread"
+  # threads = 10
+
+  workers = 1
+  # workers = multiprocessing.cpu_count() * 2 + 1
+  # spew = True
+
+  keepalive = 10
+#+end_src
+
+#+begin_src bash :async
+  gunicorn -c gunicorn_config.py
+#+end_src
+
+#+RESULTS:
+
+#+begin_src python
+  import os
+  import psutil
+  import time
+  import requests
+  import urllib3
+  import threading
+  from threading import Thread
+  from concurrent.futures import ThreadPoolExecutor
+
+
+  session = requests.Session()
+  http = urllib3.PoolManager()
+
+  def req(i):
+      url = "http://127.0.0.1:8000/"
+      start = time.time()
+      res = session.get(url)
+      print(f"thread: {i} time cost: {time.time() - start}")
+      time.sleep(2)
+      return res
+
+  def output_net():
+      pid = os.getpid()
+      proc = psutil.Process(pid)
+
+      while True:
+          print("====proc connections====")
+          print(f"pid: {pid} ", proc.connections(kind="tcp4"))
+          time.sleep(0.1)
+
+
+  def start_debug():
+      t = Thread(target=output_net, daemon=True)
+      t.start()
+
+
+  def main():
+      url = "http://127.0.0.1:8000/"
+      # url = "http://127.0.0.1:80/"
+
+      start_debug()
+
+      # import pdb;pdb.set_trace()
+      for i in range(10):
+          start = time.time()
+          res = session.get(url)
+          print(f"time cost: {time.time() - start}")
+          time.sleep(0.1)
+
+      print("requests")
+
+      # with ThreadPoolExecutor(max_workers=10) as w:
+      #     res = w.map(req, range(10))
+      # for i in range(10):
+      #     start = time.time()
+      #     res = requests.get(url)
+      #     print(f"time cost: {time.time() - start}")
+
+      start = time.time()
+      res = session.get(url)
+      print(f"time cost: {time.time() - start}")
+
+      print(res)
+
+
+  if __name__ == "__main__":
+      main()
+#+end_src
+
+
+通过调整代码和使用netstat -nlp查看导出如下结论.
+
+  1) gunicorn默认的sync模式没有keep-alive,所以会打开链接, netstat看到多个TIME_WAIT链接
+  2) gunicorn gthread模式直接有keep-alive,通过循环请求，发现只有一个链接，使用threadpool并发请求，看到有多个链接.
+  3) 通过请求nginx确认nginx默认有keep-alive
+  4) 通过设置循环sleep大于gunicorn keep-alive,发现链接没有服用
+
+#+RESULTS:
+$ sudo netstat -ntp | grep 8000
+tcp        0      0 127.0.0.1:8000          127.0.0.1:47480         TIME_WAIT   -                   
+tcp        0      0 127.0.0.1:8000          127.0.0.1:47482         TIME_WAIT   -                   
+tcp        0      0 127.0.0.1:8000          127.0.0.1:47490         TIME_WAIT   -                   
+tcp        0      0 127.0.0.1:8000          127.0.0.1:47486         TIME_WAIT   -                   
+tcp        0      0 127.0.0.1:8000          127.0.0.1:47488         TIME_WAIT   -                   
+tcp        0      0 127.0.0.1:47492         127.0.0.1:8000          ESTABLISHED 1065153/python      
+tcp        0      0 127.0.0.1:8000          127.0.0.1:47484         TIME_WAIT   -                   
+tcp        0      0 127.0.0.1:8000          127.0.0.1:47492         ESTABLISHED 1062945/python3.9   

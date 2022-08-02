@@ -1,0 +1,28 @@
+[2022-07-17 20:22:41 +0800] [376087] [INFO] Starting gunicorn 20.1.0
+[2022-07-17 20:22:41 +0800] [376087] [INFO] Listening at: http://127.0.0.1:8000 (376087)
+[2022-07-17 20:22:41 +0800] [376087] [INFO] Using worker: sync
+[2022-07-17 20:22:41 +0800] [376219] [INFO] Booting worker with pid: 376219
+[2022-07-17 20:22:41 +0800] [376220] [INFO] Booting worker with pid: 376220
+[2022-07-17 20:22:41 +0800] [376221] [INFO] Booting worker with pid: 376221
+[2022-07-17 20:22:41 +0800] [376222] [INFO] Booting worker with pid: 376222
+[2022-07-17 21:04:05 +0800] [376087] [INFO] Handling signal: winch
+[2022-07-17 21:08:48 +0800] [376087] [INFO] Handling signal: winch
+[2022-07-18 08:07:12 +0800] [376087] [CRITICAL] WORKER TIMEOUT (pid:376219)
+[2022-07-18 08:07:12 +0800] [376087] [CRITICAL] WORKER TIMEOUT (pid:376220)
+[2022-07-18 08:07:12 +0800] [376087] [CRITICAL] WORKER TIMEOUT (pid:376221)
+[2022-07-18 08:07:12 +0800] [376087] [CRITICAL] WORKER TIMEOUT (pid:376222)
+[2022-07-18 08:07:12 +0800] [376219] [INFO] Worker exiting (pid: 376219)
+[2022-07-18 08:07:12 +0800] [376220] [INFO] Worker exiting (pid: 376220)
+[2022-07-18 08:07:12 +0800] [376221] [INFO] Worker exiting (pid: 376221)
+[2022-07-18 08:07:12 +0800] [376222] [INFO] Worker exiting (pid: 376222)
+[2022-07-18 08:07:12 +0800] [514415] [INFO] Booting worker with pid: 514415
+[2022-07-18 08:07:12 +0800] [514416] [INFO] Booting worker with pid: 514416
+[2022-07-18 08:07:12 +0800] [514417] [INFO] Booting worker with pid: 514417
+[2022-07-18 08:07:12 +0800] [514421] [INFO] Booting worker with pid: 514421
+[2022-07-18 12:59:23 +0800] [376087] [INFO] Handling signal: winch
+[2022-07-18 12:59:24 +0800] [376087] [INFO] Handling signal: int
+[2022-07-18 12:59:24 +0800] [514416] [INFO] Worker exiting (pid: 514416)
+[2022-07-18 12:59:24 +0800] [514421] [INFO] Worker exiting (pid: 514421)
+[2022-07-18 12:59:24 +0800] [514415] [INFO] Worker exiting (pid: 514415)
+[2022-07-18 12:59:24 +0800] [514417] [INFO] Worker exiting (pid: 514417)
+[2022-07-18 12:59:25 +0800] [376087] [INFO] Shutting down: Master
